@@ -14,6 +14,51 @@ library(ggplot2)
 print("It is a test branch")
 print("It is a second test")
 
+# ---- S3 “Deadline” class definitions begin here ----
+
+Deadline <- function(subject, task, deadline_date, priority,
+                     state = "new", note = "") {
+  structure(
+    list(
+      subject       = subject,
+      task          = task,
+      deadline_date = as.Date(deadline_date),
+      priority      = priority,
+      state         = state,
+      note          = note
+    ),
+    class = "Deadline"
+  )
+}
+
+print.Deadline <- function(x, ...) {
+  cat(
+    sprintf(
+      "<Deadline> %s — %s\n  Due: %s | Prio: %d | State: %s\n  Note: %s\n",
+      x$subject, x$task,
+      format(x$deadline_date), x$priority, x$state,
+      ifelse(x$note == "", "<none>", x$note)
+    )
+  )
+}
+
+as.data.frame.Deadline <- function(x, ...) {
+  data.frame(
+    subject       = x$subject,
+    task          = x$task,
+    deadline_date = as.character(x$deadline_date),
+    priority      = x$priority,
+    state         = x$state,
+    note          = x$note,
+    stringsAsFactors = FALSE
+  )
+}
+
+# ---- S3 definitions end here ----
+
+# Now connect to your SQLite DB
+db <- dbConnect(RSQLite::SQLite(), "scheduler.db")
+
 ####################################
 # Connect database                #
 ####################################
@@ -142,26 +187,26 @@ server<- function(input, output, session) {
     else if (ects < 5) {2}
     else {1}
     
-    new_entry <- data.frame(
-      subject = input$subject,
-      task = input$task,
-      deadline_date = as.character(as.Date(input$deadline_date)),
-      priority = priority_d,
-      state = "new",
-      note = "",
-      stringsAsFactors = FALSE
+  new_entry <- data.frame(
+    subject       = input$subject,
+    task          = input$task,
+    deadline_date = as.character(as.Date(input$deadline_date)),
+    priority      = priority_d,
+    state         = "new",
+    note          = "",
+    stringsAsFactors = FALSE
+  )
+
+  dbExecute(db,
+    'INSERT INTO deadline (subject, task, deadline_date, priority, state, note) VALUES (?,?,?,?,?,?)',
+    params = list(
+      new_entry$subject,
+      new_entry$task,
+      new_entry$deadline_date,
+      new_entry$priority,
+      new_entry$state,
+      new_entry$note
     )
-    
-    dbExecute(db,'INSERT INTO deadline (subject, task,deadline_date, priority, state, note ) 
-                  VALUES (?,?,?,?,?,?)',
-               params = list(
-                 new_entry$subject,
-                 new_entry$task,
-                 new_entry$deadline_date,
-                 new_entry$priority,
-                 new_entry$state,
-                 new_entry$note
-               ))
     
     v$data <- dbGetQuery(db, 'SELECT deadline_id, subject, task, deadline_date, priority, state, note
                               FROM deadline
